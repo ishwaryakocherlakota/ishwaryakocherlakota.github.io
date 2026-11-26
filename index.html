@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SampleFlow — Clinical Lab Intake &amp; Pre-Analytical QC System</title>
+  <meta name="description" content="Interactive clinical laboratory pre-analytical specimen intake, barcode verification, and quality control workbench built with accessibility-first dual-coding and gloved-hand ergonomics." />
+  
+  <!-- OpenGraph / Portfolio Link Preview -->
+  <meta property="og:title" content="SampleFlow — Clinical Lab Intake &amp; QC Workbench" />
+  <meta property="og:description" content="Interactive UX engineering case study: Pre-analytical specimen verification, WCAG 1.4.1 dual-coded vacutainers, and NABL-ready QC audit logging." />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            navy: { 900: '#162231', 800: '#1E2D40', 700: '#2A3E57' },
+            tealbrand: { 50: '#EEF6F7', 100: '#D4EAEB', 600: '#2F767E', 700: '#235B62' }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background-color: #F4F7F9; color: #1E2D40; }
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
+    .glove-mode .glove-btn { min-height: 56px; padding-top: 0.85rem; padding-bottom: 0.85rem; font-size: 0.95rem; }
+    .hc-mode { background-color: #0B1120 !important; color: #F8FAFC !important; }
+    .hc-mode .app-surface { background-color: #0F172A !important; border-color: #334155 !important; color: #F8FAFC !important; }
+    .hc-mode .app-card { background-color: #1E293B !important; border-color: #475569 !important; color: #F8FAFC !important; }
+    .hc-mode .app-muted { color: #CBD5E1 !important; }
+    .hc-mode .app-input { background-color: #0F172A !important; border-color: #64748B !important; color: #F8FAFC !important; }
+  </style>
+</head>
+<body id="app-body" class="min-h-screen flex flex-col antialiased transition-colors">
+
+  <!-- Toast Notification -->
+  <div id="toast" role="status" aria-live="polite" class="fixed bottom-5 right-5 z-50 hidden items-center gap-2 rounded-xl bg-navy-900 px-4 py-3 text-sm font-semibold text-white shadow-2xl border border-slate-700">
+    <i data-lucide="check-circle-2" class="h-4 w-4 text-emerald-400"></i>
+    <span id="toast-text">Action saved</span>
+  </div>
+
+  <!-- Top App Header -->
+  <header class="app-surface sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-tealbrand-600 text-white shadow-sm">
+          <i data-lucide="flask-conical" class="h-5 w-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-extrabold tracking-tight">SampleFlow</h1>
+            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-800">Bench 02 Live</span>
+          </div>
+          <p class="app-muted text-xs text-slate-500">Pre-Analytical Intake &amp; QC · Tech: Ravi Kiran · <span id="shift-clock">--:--</span></p>
+        </div>
+      </div>
+
+      <!-- View Navigation -->
+      <nav aria-label="Workbench Views" class="flex items-center gap-1 rounded-xl bg-slate-100 p-1 app-surface border border-slate-200">
+        <button type="button" data-view="workbench" class="view-nav rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-tealbrand-700 shadow-sm">Workbench</button>
+        <button type="button" data-view="tubes" class="view-nav rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600">Tube Guide</button>
+        <button type="button" data-view="audit" class="view-nav rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600">QC &amp; Audit</button>
+      </nav>
+
+      <!-- Accessibility & Portfolio Case Study Toggles -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" id="btn-hc" class="app-card inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-navy-800 hover:bg-slate-50 transition">
+          <i data-lucide="contrast" class="h-4 w-4"></i>
+          <span id="lbl-hc">Lab Contrast: Off</span>
+        </button>
+        <button type="button" id="btn-glove" class="app-card inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-navy-800 hover:bg-slate-50 transition">
+          <i data-lucide="hand" class="h-4 w-4"></i>
+          <span id="lbl-glove">Gloved 56px: Off</span>
+        </button>
+        <button type="button" id="btn-about" class="inline-flex items-center gap-1.5 rounded-xl bg-navy-800 px-3 py-2 text-xs font-bold text-white hover:bg-navy-900 transition shadow-sm">
+          <i data-lucide="sparkles" class="h-3.5 w-3.5 text-tealbrand-100"></i>
+          <span>Project Brief</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6">
+
+    <!-- ==================== VIEW 1: WORKBENCH ==================== -->
+    <section id="view-workbench" class="view-panel active space-y-5">
+      <!-- Action Bar -->
+      <div class="app-card flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button type="button" id="btn-scan" class="glove-btn inline-flex items-center gap-2 rounded-xl bg-tealbrand-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-tealbrand-700 transition">
+            <i data-lucide="scan-barcode" class="h-4 w-4"></i> Scan Next Vial
+          </button>
+          <button type="button" id="btn-open-manual" class="glove-btn app-card inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-navy-800 hover:bg-slate-50 transition">
+            <i data-lucide="plus-circle" class="h-4 w-4 text-tealbrand-600"></i> Manual Intake
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" id="btn-tick-tat" class="glove-btn app-card inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 transition">
+            <i data-lucide="clock" class="h-3.5 w-3.5"></i> Advance TAT +5m
+          </button>
+          <button type="button" id="btn-reset" class="glove-btn app-card inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+            <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i> Reset Shift
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Barcode Scan Result Banner -->
+      <div id="scan-banner" class="hidden rounded-2xl border-2 p-4 sm:p-5 space-y-3"></div>
+
+      <!-- KPI Strip -->
+      <div id="kpi-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-5"></div>
+
+      <!-- Filter + Search Bar -->
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="flex flex-wrap gap-1.5" id="filter-group">
+          <button type="button" data-filter="all" class="filter-pill rounded-lg bg-navy-800 px-3 py-1.5 text-xs font-bold text-white">All</button>
+          <button type="button" data-filter="stat" class="filter-pill rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">STAT Urgent</button>
+          <button type="button" data-filter="pending" class="filter-pill rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">Pending</button>
+          <button type="button" data-filter="verified" class="filter-pill rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">Verified</button>
+          <button type="button" data-filter="rejected" class="filter-pill rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">QC Flagged</button>
+        </div>
+        <div class="flex items-center gap-2 w-full md:w-auto">
+          <input type="text" id="search-input" placeholder="Search sample ID, patient, test, or tube..." class="app-input w-full md:w-72 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs focus:border-tealbrand-600 focus:outline-none" />
+        </div>
+      </div>
+
+      <!-- Specimen Queue -->
+      <div id="queue-list" class="space-y-3"></div>
+    </section>
+
+    <!-- ==================== VIEW 2: TUBE REFERENCE GUIDE ==================== -->
+    <section id="view-tubes" class="view-panel space-y-5">
+      <div class="app-card rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-bold">Vacutainer Dual-Coding Reference (WCAG 1.4.1 Color + Shape)</h2>
+        <p class="app-muted mt-1 text-xs text-slate-500">Order-of-draw clinical reference built for rapid pre-analytical verification and colorblind accessibility.</p>
+      </div>
+      <div id="tube-guide-grid" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
+    </section>
+
+    <!-- ==================== VIEW 3: QC & AUDIT LOG ==================== -->
+    <section id="view-audit" class="view-panel space-y-5">
+      <div class="app-card flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 class="text-lg font-bold">Shift QC Analytics &amp; NABL Audit Trail</h2>
+          <p class="app-muted text-xs text-slate-500">Real-time record of every barcode scan, tube-mismatch catch, verification, and rejection.</p>
+        </div>
+        <button type="button" id="btn-export-csv" class="glove-btn inline-flex items-center gap-2 rounded-xl bg-navy-800 px-4 py-2.5 text-xs font-bold text-white hover:bg-navy-900 transition">
+          <i data-lucide="download" class="h-4 w-4"></i> Export Shift CSV
+        </button>
+      </div>
+
+      <div class="grid gap-5 lg:grid-cols-12">
+        <div class="app-card lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 class="text-sm font-bold mb-3">Shift Queue Breakdown</h3>
+          <div class="relative h-64 w-full">
+            <canvas id="qcChart"></canvas>
+          </div>
+        </div>
+        <div class="app-card lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 class="text-sm font-bold mb-3">Timestamped Audit Trail</h3>
+          <ul id="audit-list" class="space-y-2 text-xs"></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Portfolio Footer -->
+  <footer class="app-surface mt-10 border-t border-slate-200 bg-white py-5 text-xs text-slate-500">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 sm:flex-row sm:px-6">
+      <p class="app-muted"><strong>SampleFlow</strong> · Healthcare UX &amp; Frontend Engineering Portfolio Prototype</p>
+      <div class="flex items-center gap-4">
+        <button type="button" id="footer-about-link" class="font-semibold text-tealbrand-700 hover:underline">Design Rationale &amp; Stack</button>
+        <span>·</span>
+        <span>Built with Vanilla JS, Tailwind CSS &amp; Chart.js</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== MODAL: PORTFOLIO CASE STUDY BRIEF ==================== -->
+  <div id="about-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/65 p-4 backdrop-blur-sm">
+    <div class="w-full max-w-xl rounded-2xl bg-white p-6 text-navy-900 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-3">
+        <div>
+          <p class="text-[11px] font-extrabold uppercase tracking-wider text-tealbrand-700">Portfolio Case Study</p>
+          <h3 class="text-xl font-extrabold">SampleFlow: Pre-Analytical Lab Workbench</h3>
+        </div>
+        <button type="button" id="about-close-x" aria-label="Close" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs leading-relaxed text-slate-700">
+        <p>
+          <strong>Problem Statement:</strong> Over 60% of clinical laboratory errors occur in the <em>pre-analytical phase</em>—wrong anticoagulant tubes, hemolyzed samples, and missed STAT turnaround times (TAT) caused by cluttered legacy LIS interfaces.
+        </p>
+
+        <div class="grid gap-2.5 sm:grid-cols-2">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="font-bold text-navy-900">1. WCAG 1.4.1 Dual-Coding</p>
+            <p class="mt-1 text-slate-600">Every vacutainer cap pairs color with a distinct geometric symbol (● Lavender, ■ Blue, ▲ Gold, ◆ Green, ✚ Gray) so colorblind technicians never rely on hue alone.</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="font-bold text-navy-900">2. Gloved-Hand Ergonomics</p>
+            <p class="mt-1 text-slate-600">Toggling <strong>Gloved 56px Mode</strong> expands primary touch targets to ≥56px height to accommodate double-gloved bench operation on touch terminals.</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="font-bold text-navy-900">3. Automated Mismatch Interception</p>
+            <p class="mt-1 text-slate-600">Try clicking <strong>Scan Next Vial</strong>—the first simulated scan catches a Fluoride Gray tube scanned for STAT Electrolytes (which requires Heparin Green).</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p class="font-bold text-navy-900">4. 2-Tap QC &amp; NABL Audit Trail</p>
+            <p class="mt-1 text-slate-600">Standardized rejection chips eliminate free-text bottlenecks and generate an instant timestamped CSV report for lab accreditation audits.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2 border-t border-slate-100">
+        <button type="button" id="about-close-btn" class="glove-btn rounded-xl bg-tealbrand-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-tealbrand-700">Explore Live Prototype</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: 2-TAP QC REJECTION ==================== -->
+  <div id="qc-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/65 p-4 backdrop-blur-sm">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 text-navy-900 shadow-2xl space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-[11px] font-extrabold uppercase tracking-wider text-rose-600">2-Tap Clinical QC Rejection</p>
+          <h3 id="qc-modal-title" class="text-lg font-bold">Flag Specimen</h3>
+        </div>
+        <button type="button" id="qc-close-x" aria-label="Close" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <div id="qc-reason-chips" class="grid grid-cols-1 gap-2">
+        <button type="button" data-reason="Hemolyzed Specimen" class="qc-chip glove-btn rounded-xl border border-slate-200 px-3.5 py-2.5 text-left text-sm font-semibold">Hemolyzed Specimen (RBC lysis)</button>
+        <button type="button" data-reason="Clotted EDTA Sample" class="qc-chip glove-btn rounded-xl border border-slate-200 px-3.5 py-2.5 text-left text-sm font-semibold">Clotted Sample in Anticoagulant Tube</button>
+        <button type="button" data-reason="Insufficient Volume (QNS)" class="qc-chip glove-btn rounded-xl border border-slate-200 px-3.5 py-2.5 text-left text-sm font-semibold">Insufficient Volume (QNS)</button>
+        <button type="button" data-reason="Wrong Tube / Anticoagulant" class="qc-chip glove-btn rounded-xl border border-slate-200 px-3.5 py-2.5 text-left text-sm font-semibold">Wrong Tube / Anticoagulant Mismatch</button>
+      </div>
+      <div>
+        <label for="qc-note-input" class="block text-xs font-semibold text-slate-600 mb-1">Bench Note (Optional)</label>
+        <input type="text" id="qc-note-input" placeholder="e.g., Redraw requested from Phlebotomy Desk 2" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-tealbrand-600 focus:outline-none" />
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" id="qc-cancel-btn" class="glove-btn rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+        <button type="button" id="qc-confirm-btn" class="glove-btn rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">Confirm Rejection</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: MANUAL ACCESSION INTAKE ==================== -->
+  <div id="manual-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/65 p-4 backdrop-blur-sm">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 text-navy-900 shadow-2xl space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-[11px] font-extrabold uppercase tracking-wider text-tealbrand-700">Live Anticoagulant Validator</p>
+          <h3 class="text-lg font-bold">Manual Specimen Intake</h3>
+        </div>
+        <button type="button" id="manual-close-x" aria-label="Close" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label for="man-patient" class="block text-xs font-semibold text-slate-600 mb-1">Patient ID</label>
+          <input type="text" id="man-patient" value="PT-8901" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-tealbrand-600 focus:outline-none" />
+        </div>
+        <div>
+          <label for="man-test" class="block text-xs font-semibold text-slate-600 mb-1">Ordered Test</label>
+          <select id="man-test" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-tealbrand-600 focus:outline-none">
+            <option value="Complete Blood Count (CBC)">Complete Blood Count (CBC) — Requires EDTA Lavender</option>
+            <option value="PT / INR Coagulation">PT / INR Coagulation — Requires Citrate Blue</option>
+            <option value="Troponin-I (Cardiac)">Troponin-I (Cardiac) — Requires SST Gold</option>
+            <option value="STAT Serum Electrolytes">STAT Serum Electrolytes — Requires Heparin Green</option>
+            <option value="Fasting Blood Glucose">Fasting Blood Glucose — Requires Fluoride Gray</option>
+          </select>
+        </div>
+        <div>
+          <label for="man-tube" class="block text-xs font-semibold text-slate-600 mb-1">Scanned Vacutainer Tube</label>
+          <select id="man-tube" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-tealbrand-600 focus:outline-none">
+            <option value="EDTA Lavender">● EDTA Lavender</option>
+            <option value="Citrate Blue">■ Citrate Blue</option>
+            <option value="SST Gold">▲ SST Gold</option>
+            <option value="Heparin Green">◆ Heparin Green</option>
+            <option value="Fluoride Gray">✚ Fluoride Gray</option>
+          </select>
+        </div>
+        <div>
+          <label for="man-priority" class="block text-xs font-semibold text-slate-600 mb-1">Priority</label>
+          <select id="man-priority" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-tealbrand-600 focus:outline-none">
+            <option value="STAT">STAT Urgent (30m TAT)</option>
+            <option value="Routine">Routine (120m TAT)</option>
+          </select>
+        </div>
+        <div id="man-live-check" class="rounded-xl p-3 text-xs font-semibold"></div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" id="manual-cancel-btn" class="glove-btn rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+        <button type="button" id="manual-submit-btn" class="glove-btn rounded-xl bg-tealbrand-600 px-4 py-2 text-xs font-bold text-white hover:bg-tealbrand-700">Log Specimen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: SPECIMEN DETAIL DRAWER ==================== -->
+  <div id="detail-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/65 p-4 backdrop-blur-sm">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 text-navy-900 shadow-2xl space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-[11px] font-extrabold uppercase tracking-wider text-tealbrand-700">Chain of Custody</p>
+          <h3 id="detail-title" class="text-lg font-bold">Specimen Details</h3>
+        </div>
+        <button type="button" id="detail-close-x" aria-label="Close" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <div id="detail-body" class="space-y-2.5 text-sm"></div>
+      <div class="flex justify-end">
+        <button type="button" id="detail-close-btn" class="glove-btn rounded-xl bg-navy-800 px-4 py-2 text-xs font-bold text-white">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const TUBE_SPECS = {
+        'EDTA Lavender': { shape: '●', cls: 'bg-purple-100 text-purple-900 border-purple-300', additive: 'K2/K3 EDTA', inversions: '8–10 gentle inversions', tests: 'CBC, HbA1c, ESR, Blood Film', risk: 'Micro-clots if under-inverted; hemolysis if shaken' },
+        'Citrate Blue': { shape: '■', cls: 'bg-sky-100 text-sky-900 border-sky-300', additive: '3.2% Sodium Citrate', inversions: '3–4 gentle inversions', tests: 'PT / INR, aPTT, D-Dimer, Fibrinogen', risk: 'Strict 9:1 blood-to-citrate fill line required (QNS error)' },
+        'SST Gold': { shape: '▲', cls: 'bg-amber-100 text-amber-900 border-amber-300', additive: 'Clot Activator + Gel Separator', inversions: '5 inversions · Clot 30m', tests: 'Troponin-I, LFT, KFT, Lipid Panel', risk: 'Centrifuging before full clotting causes fibrin strands' },
+        'Heparin Green': { shape: '◆', cls: 'bg-emerald-100 text-emerald-900 border-emerald-300', additive: 'Lithium / Sodium Heparin', inversions: '8–10 gentle inversions', tests: 'STAT Electrolytes, Ammonia, ABG', risk: 'Wrong anticoagulant alters potassium & calcium readings' },
+        'Fluoride Gray': { shape: '✚', cls: 'bg-slate-200 text-slate-900 border-slate-400', additive: 'Sodium Fluoride + K-Oxalate', inversions: '8–10 gentle inversions', tests: 'Fasting/PP Glucose, Lactate', risk: 'Glycolysis inhibition; unsuitable for routine chemistry panels' }
+      };
+
+      const TEST_TO_TUBE = {
+        'Complete Blood Count (CBC)': 'EDTA Lavender',
+        'HbA1c (Glycated Hb)': 'EDTA Lavender',
+        'PT / INR Coagulation': 'Citrate Blue',
+        'D-Dimer Quantitative': 'Citrate Blue',
+        'Troponin-I (Cardiac)': 'SST Gold',
+        'STAT Serum Electrolytes': 'Heparin Green',
+        'Fasting Blood Glucose': 'Fluoride Gray'
+      };
+
+      const INITIAL_QUEUE = [
+        { id: 'SF-24091', patient: 'PT-8841', test: 'Troponin-I (Cardiac)', tube: 'SST Gold', priority: 'STAT', tatMin: 18, status: 'pending', desk: 'ER Phlebotomy 1', collected: '08:28 AM', qcNote: '' },
+        { id: 'SF-24092', patient: 'PT-8844', test: 'Complete Blood Count (CBC)', tube: 'EDTA Lavender', priority: 'Routine', tatMin: 95, status: 'pending', desk: 'OPD Desk 3', collected: '08:30 AM', qcNote: '' },
+        { id: 'SF-24093', patient: 'PT-8839', test: 'PT / INR Coagulation', tube: 'Citrate Blue', priority: 'STAT', tatMin: 24, status: 'verified', desk: 'ICU Ward B', collected: '08:22 AM', qcNote: '' },
+        { id: 'SF-24094', patient: 'PT-8835', test: 'Fasting Blood Glucose', tube: 'Fluoride Gray', priority: 'Routine', tatMin: 115, status: 'rejected', desk: 'OPD Desk 1', collected: '08:15 AM', qcNote: 'Hemolyzed Specimen — Redraw requested' }
+      ];
+
+      const SCAN_PRESETS = [
+        { id: 'SF-24095', patient: 'PT-8852', test: 'STAT Serum Electrolytes', expectedTube: 'Heparin Green', scannedTube: 'Fluoride Gray', priority: 'STAT', tatMin: 20, desk: 'ER Phlebotomy 2' },
+        { id: 'SF-24096', patient: 'PT-8855', test: 'HbA1c (Glycated Hb)', expectedTube: 'EDTA Lavender', scannedTube: 'EDTA Lavender', priority: 'Routine', tatMin: 110, desk: 'OPD Desk 4' },
+        { id: 'SF-24097', patient: 'PT-8859', test: 'D-Dimer Quantitative', expectedTube: 'Citrate Blue', scannedTube: 'Citrate Blue', priority: 'STAT', tatMin: 26, desk: 'ICU Ward A' }
+      ];
+
+      let state = {
+        view: 'workbench',
+        highContrast: false,
+        gloveMode: false,
+        filter: 'all',
+        search: '',
+        scanCursor: 0,
+        nextIdNum: 24098,
+        activeScan: null,
+        queue: JSON.parse(JSON.stringify(INITIAL_QUEUE)),
+        audit: [
+          '08:42 AM · SF-24093 (PT / INR Coagulation) verified at Bench 02',
+          '08:38 AM · SF-24094 flagged QC: Hemolyzed Specimen — Redraw requested'
+        ],
+        qcTargetId: null,
+        qcReason: 'Hemolyzed Specimen'
+      };
+
+      let qcChartInstance = null;
+
+      function nowTime() {
+        return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function formatTat(mins) {
+        if (mins <= 0) return 'OVERDUE';
+        if (mins < 60) return mins + 'm left';
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return h + 'h ' + m + 'm';
+      }
+
+      function toast(msg) {
+        const el = document.getElementById('toast');
+        document.getElementById('toast-text').textContent = msg;
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+        clearTimeout(window._t);
+        window._t = setTimeout(() => { el.classList.add('hidden'); el.classList.remove('flex'); }, 2200);
+      }
+
+      function updateClock() {
+        document.getElementById('shift-clock').textContent = nowTime();
+      }
+      updateClock();
+      if (window._clockInt) clearInterval(window._clockInt);
+      window._clockInt = setInterval(updateClock, 30000);
+
+      // Portfolio About Modal
+      function openAboutModal() {
+        const m = document.getElementById('about-modal');
+        m.classList.remove('hidden'); m.classList.add('flex');
+      }
+      function closeAboutModal() {
+        const m = document.getElementById('about-modal');
+        m.classList.add('hidden'); m.classList.remove('flex');
+      }
+      document.getElementById('btn-about').addEventListener('click', openAboutModal);
+      document.getElementById('footer-about-link').addEventListener('click', openAboutModal);
+      document.getElementById('about-close-x').addEventListener('click', closeAboutModal);
+      document.getElementById('about-close-btn').addEventListener('click', closeAboutModal);
+
+      // Navigation
+      function setView(v) {
+        state.view = v;
+        document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById('view-' + v).classList.add('active');
+        document.querySelectorAll('.view-nav').forEach(btn => {
+          const on = btn.getAttribute('data-view') === v;
+          btn.className = on
+            ? 'view-nav rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-tealbrand-700 shadow-sm'
+            : 'view-nav rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-navy-900';
+        });
+        if (v === 'audit') renderAuditAndChart();
+      }
+      document.querySelectorAll('.view-nav').forEach(b => b.addEventListener('click', () => setView(b.getAttribute('data-view'))));
+
+      // Accessibility Toggles
+      document.getElementById('btn-hc').addEventListener('click', () => {
+        state.highContrast = !state.highContrast;
+        document.getElementById('app-body').classList.toggle('hc-mode', state.highContrast);
+        document.getElementById('lbl-hc').textContent = 'Lab Contrast: ' + (state.highContrast ? 'On' : 'Off');
+      });
+      document.getElementById('btn-glove').addEventListener('click', () => {
+        state.gloveMode = !state.gloveMode;
+        document.getElementById('app-body').classList.toggle('glove-mode', state.gloveMode);
+        document.getElementById('lbl-glove').textContent = 'Gloved 56px: ' + (state.gloveMode ? 'On' : 'Off');
+      });
+
+      // Render KPIs + Queue
+      function renderWorkbench() {
+        const total = state.queue.length;
+        const statPending = state.queue.filter(s => s.priority === 'STAT' && s.status === 'pending').length;
+        const verified = state.queue.filter(s => s.status === 'verified').length;
+        const rejected = state.queue.filter(s => s.status === 'rejected').length;
+        const onTime = total > 0 ? Math.round((state.queue.filter(s => s.tatMin > 0).length / total) * 100) : 100;
+
+        document.getElementById('kpi-grid').innerHTML = `
+          <div class="app-card rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <p class="app-muted text-[11px] font-bold uppercase text-slate-500">Total Queue</p>
+            <p class="mt-1 text-2xl font-extrabold">${total}</p>
+          </div>
+          <div class="app-card rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 shadow-sm">
+            <p class="text-[11px] font-bold uppercase text-rose-700">Pending STAT</p>
+            <p class="mt-1 text-2xl font-extrabold text-rose-700">${statPending}</p>
+          </div>
+          <div class="app-card rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 shadow-sm">
+            <p class="text-[11px] font-bold uppercase text-emerald-700">Verified</p>
+            <p class="mt-1 text-2xl font-extrabold text-emerald-700">${verified}</p>
+          </div>
+          <div class="app-card rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 shadow-sm">
+            <p class="text-[11px] font-bold uppercase text-amber-800">QC Flagged</p>
+            <p class="mt-1 text-2xl font-extrabold text-amber-800">${rejected}</p>
+          </div>
+          <div class="app-card col-span-2 sm:col-span-1 rounded-xl border border-tealbrand-100 bg-tealbrand-50/60 p-3.5 shadow-sm">
+            <p class="text-[11px] font-bold uppercase text-tealbrand-700">TAT On-Time</p>
+            <p class="mt-1 text-2xl font-extrabold text-tealbrand-700">${onTime}%</p>
+          </div>
+        `;
+
+        document.querySelectorAll('.filter-pill').forEach(btn => {
+          const active = btn.getAttribute('data-filter') === state.filter;
+          btn.className = active
+            ? 'filter-pill rounded-lg bg-navy-800 px-3 py-1.5 text-xs font-bold text-white'
+            : 'filter-pill rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100';
+        });
+
+        const q = state.search.trim().toLowerCase();
+        const filtered = state.queue
+          .filter(s => {
+            if (state.filter === 'stat' && s.priority !== 'STAT') return false;
+            if (state.filter === 'pending' && s.status !== 'pending') return false;
+            if (state.filter === 'verified' && s.status !== 'verified') return false;
+            if (state.filter === 'rejected' && s.status !== 'rejected') return false;
+            if (q && !(s.id.toLowerCase().includes(q) || s.patient.toLowerCase().includes(q) || s.test.toLowerCase().includes(q) || s.tube.toLowerCase().includes(q))) return false;
+            return true;
+          })
+          .sort((a, b) => (b.priority === 'STAT' ? 1 : 0) - (a.priority === 'STAT' ? 1 : 0) || a.tatMin - b.tatMin);
+
+        const listEl = document.getElementById('queue-list');
+        if (!filtered.length) {
+          listEl.innerHTML = `<div class="app-card rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 app-muted">No specimens match this filter.</div>`;
+        } else {
+          listEl.innerHTML = filtered.map(s => {
+            const spec = TUBE_SPECS[s.tube] || { shape: '●', cls: 'bg-slate-100 text-slate-800 border-slate-300' };
+            const accent = s.status === 'verified' ? 'border-l-emerald-600' : s.status === 'rejected' ? 'border-l-amber-600' : s.priority === 'STAT' ? 'border-l-rose-600' : 'border-l-tealbrand-600';
+            const tatUrgent = s.tatMin <= 15 && s.status === 'pending';
+            const statusTag = s.status === 'verified'
+              ? '<span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">✓ Verified</span>'
+              : s.status === 'rejected'
+              ? '<span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900">⚠ QC Flagged</span>'
+              : '<span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">Pending Intake</span>';
+
+            return `
+              <div class="app-card rounded-2xl border border-slate-200 border-l-4 ${accent} bg-white p-4 shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="space-y-1.5">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" data-detail="${s.id}" class="text-sm font-extrabold underline decoration-dotted underline-offset-4 hover:text-tealbrand-600">${s.id}</button>
+                    <span class="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${s.priority === 'STAT' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-700'}">${s.priority} · ${formatTat(s.tatMin)}</span>
+                    ${tatUrgent ? '<span class="rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-extrabold text-rose-800">CRITICAL TAT</span>' : ''}
+                    ${statusTag}
+                  </div>
+                  <p class="text-sm font-semibold">${s.test} <span class="app-muted text-xs font-normal text-slate-500">· ${s.patient} · ${s.desk}</span></p>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-bold ${spec.cls}">${spec.shape} ${s.tube}</span>
+                    ${s.qcNote ? `<span class="text-xs font-semibold text-amber-700">QC: ${s.qcNote}</span>` : ''}
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 shrink-0">
+                  ${s.status !== 'verified' ? `<button type="button" data-verify="${s.id}" class="glove-btn rounded-xl bg-tealbrand-600 px-4 py-2 text-xs font-bold text-white hover:bg-tealbrand-700 transition">Verify</button>` : ''}
+                  ${s.status !== 'rejected' ? `<button type="button" data-flag="${s.id}" class="glove-btn rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition">Flag QC</button>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          listEl.querySelectorAll('[data-verify]').forEach(b => b.addEventListener('click', () => verifyItem(b.getAttribute('data-verify'))));
+          listEl.querySelectorAll('[data-flag]').forEach(b => b.addEventListener('click', () => openQcModal(b.getAttribute('data-flag'))));
+          listEl.querySelectorAll('[data-detail]').forEach(b => b.addEventListener('click', () => openDetailModal(b.getAttribute('data-detail'))));
+        }
+        renderScanBanner();
+      }
+
+      function renderScanBanner() {
+        const el = document.getElementById('scan-banner');
+        const sc = state.activeScan;
+        if (!sc) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        const mismatch = sc.scannedTube !== sc.expectedTube;
+        const expSpec = TUBE_SPECS[sc.expectedTube];
+        const scanSpec = TUBE_SPECS[sc.scannedTube];
+
+        if (mismatch) {
+          el.className = 'rounded-2xl border-2 border-rose-500 bg-rose-50 p-4 sm:p-5 text-rose-950 space-y-3';
+          el.innerHTML = `
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-wider text-rose-700">⚠ Tube Mismatch Prevented</p>
+                <p class="text-base font-extrabold mt-0.5">${sc.id} · ${sc.test} (${sc.priority})</p>
+                <p class="text-xs mt-1">Scanned <strong>${scanSpec.shape} ${sc.scannedTube}</strong>, but test requires <strong>${expSpec.shape} ${sc.expectedTube}</strong>.</p>
+              </div>
+              <span class="rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-bold text-white">Pre-Analytical Block</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" id="sc-reject" class="glove-btn rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">Reject &amp; Request Redraw</button>
+              <button type="button" id="sc-dismiss" class="glove-btn rounded-xl border border-rose-300 bg-white px-4 py-2 text-xs font-semibold text-rose-800">Dismiss</button>
+            </div>
+          `;
+          document.getElementById('sc-reject').addEventListener('click', () => {
+            state.queue.unshift({
+              id: sc.id, patient: sc.patient, test: sc.test, tube: sc.expectedTube,
+              priority: sc.priority, tatMin: sc.tatMin, status: 'rejected', desk: sc.desk, collected: nowTime(),
+              qcNote: `Wrong Tube (Scanned ${sc.scannedTube})`
+            });
+            state.audit.unshift(`${nowTime()} · ${sc.id} blocked at scan: Wrong Tube (${sc.scannedTube} vs ${sc.expectedTube})`);
+            state.activeScan = null;
+            toast('Mismatch logged & redraw requested');
+            renderWorkbench();
+          });
+          document.getElementById('sc-dismiss').addEventListener('click', () => { state.activeScan = null; renderWorkbench(); });
+        } else {
+          el.className = 'rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-4 sm:p-5 text-emerald-950 space-y-3';
+          el.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-wider text-emerald-700">✓ Barcode &amp; Anticoagulant Match</p>
+                <p class="text-base font-extrabold mt-0.5">${sc.id} · ${sc.test} (${sc.priority})</p>
+                <p class="text-xs mt-1">Verified tube: <strong>${expSpec.shape} ${sc.expectedTube}</strong> · ${sc.desk}</p>
+              </div>
+              <button type="button" id="sc-accept" class="glove-btn rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-800">Add Verified to Queue</button>
+            </div>
+          `;
+          document.getElementById('sc-accept').addEventListener('click', () => {
+            state.queue.unshift({
+              id: sc.id, patient: sc.patient, test: sc.test, tube: sc.expectedTube,
+              priority: sc.priority, tatMin: sc.tatMin, status: 'verified', desk: sc.desk, collected: nowTime(), qcNote: ''
+            });
+            state.audit.unshift(`${nowTime()} · ${sc.id} (${sc.test}) barcode verified`);
+            state.activeScan = null;
+            toast(sc.id + ' verified & added');
+            renderWorkbench();
+          });
+        }
+      }
+
+      function verifyItem(id) {
+        const item = state.queue.find(x => x.id === id);
+        if (!item) return;
+        item.status = 'verified';
+        item.qcNote = '';
+        state.audit.unshift(`${nowTime()} · ${item.id} (${item.test}) verified at Bench 02`);
+        toast(item.id + ' verified');
+        renderWorkbench();
+      }
+
+      // Scan & TAT & Reset buttons
+      document.getElementById('btn-scan').addEventListener('click', () => {
+        const preset = SCAN_PRESETS[state.scanCursor % SCAN_PRESETS.length];
+        state.scanCursor += 1;
+        state.activeScan = Object.assign({}, preset, { id: state.scanCursor > SCAN_PRESETS.length ? 'SF-' + (state.nextIdNum++) : preset.id });
+        renderWorkbench();
+      });
+
+      document.getElementById('btn-tick-tat').addEventListener('click', () => {
+        state.queue.forEach(s => { if (s.status === 'pending') s.tatMin = Math.max(0, s.tatMin - 5); });
+        toast('Turnaround clocks advanced +5 min');
+        renderWorkbench();
+      });
+
+      document.getElementById('btn-reset').addEventListener('click', () => {
+        state.queue = JSON.parse(JSON.stringify(INITIAL_QUEUE));
+        state.activeScan = null;
+        state.scanCursor = 0;
+        state.filter = 'all';
+        state.search = '';
+        document.getElementById('search-input').value = '';
+        state.audit = [
+          '08:42 AM · SF-24093 (PT / INR Coagulation) verified at Bench 02',
+          '08:38 AM · SF-24094 flagged QC: Hemolyzed Specimen — Redraw requested'
+        ];
+        toast('Shift workbench reset');
+        renderWorkbench();
+      });
+
+      document.querySelectorAll('.filter-pill').forEach(b => b.addEventListener('click', () => {
+        state.filter = b.getAttribute('data-filter');
+        renderWorkbench();
+      }));
+      document.getElementById('search-input').addEventListener('input', e => {
+        state.search = e.target.value;
+        renderWorkbench();
+      });
+
+      // QC Rejection Modal
+      function openQcModal(id) {
+        const item = state.queue.find(x => x.id === id);
+        if (!item) return;
+        state.qcTargetId = id;
+        state.qcReason = 'Hemolyzed Specimen';
+        document.getElementById('qc-modal-title').textContent = `Flag ${item.id} · ${item.test}`;
+        document.getElementById('qc-note-input').value = '';
+        syncQcChips();
+        const m = document.getElementById('qc-modal');
+        m.classList.remove('hidden'); m.classList.add('flex');
+      }
+      function closeQcModal() {
+        const m = document.getElementById('qc-modal');
+        m.classList.add('hidden'); m.classList.remove('flex');
+      }
+      function syncQcChips() {
+        document.querySelectorAll('.qc-chip').forEach(c => {
+          const on = c.getAttribute('data-reason') === state.qcReason;
+          c.className = on
+            ? 'qc-chip glove-btn rounded-xl border-2 border-rose-600 bg-rose-50 px-3.5 py-2.5 text-left text-sm font-bold text-rose-900'
+            : 'qc-chip glove-btn rounded-xl border border-slate-200 px-3.5 py-2.5 text-left text-sm font-medium text-navy-800 hover:bg-slate-50';
+        });
+      }
+      document.querySelectorAll('.qc-chip').forEach(c => c.addEventListener('click', () => { state.qcReason = c.getAttribute('data-reason'); syncQcChips(); }));
+      document.getElementById('qc-close-x').addEventListener('click', closeQcModal);
+      document.getElementById('qc-cancel-btn').addEventListener('click', closeQcModal);
+      document.getElementById('qc-confirm-btn').addEventListener('click', () => {
+        const item = state.queue.find(x => x.id === state.qcTargetId);
+        if (!item) return;
+        const note = document.getElementById('qc-note-input').value.trim();
+        const reasonText = note ? `${state.qcReason} — ${note}` : state.qcReason;
+        item.status = 'rejected';
+        item.qcNote = reasonText;
+        state.audit.unshift(`${nowTime()} · ${item.id} flagged QC: ${reasonText}`);
+        closeQcModal();
+        toast(item.id + ' rejected & logged');
+        renderWorkbench();
+      });
+
+      // Manual Intake Modal with Live Anticoagulant Validation
+      function updateManualValidation() {
+        const test = document.getElementById('man-test').value;
+        const tube = document.getElementById('man-tube').value;
+        const expected = TEST_TO_TUBE[test];
+        const box = document.getElementById('man-live-check');
+        if (tube === expected) {
+          box.className = 'rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs font-semibold text-emerald-900';
+          box.textContent = `✓ Match Verified: ${TUBE_SPECS[tube].shape} ${tube} is the correct tube for ${test}.`;
+        } else {
+          box.className = 'rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs font-bold text-rose-900';
+          box.textContent = `⚠ Mismatch Warning: ${test} requires ${TUBE_SPECS[expected].shape} ${expected}, not ${tube}. Submitting will flag as QC Mismatch.`;
+        }
+      }
+      function openManualModal() {
+        updateManualValidation();
+        const m = document.getElementById('manual-modal');
+        m.classList.remove('hidden'); m.classList.add('flex');
+      }
+      function closeManualModal() {
+        const m = document.getElementById('manual-modal');
+        m.classList.add('hidden'); m.classList.remove('flex');
+      }
+      document.getElementById('btn-open-manual').addEventListener('click', openManualModal);
+      document.getElementById('manual-close-x').addEventListener('click', closeManualModal);
+      document.getElementById('manual-cancel-btn').addEventListener('click', closeManualModal);
+      document.getElementById('man-test').addEventListener('change', updateManualValidation);
+      document.getElementById('man-tube').addEventListener('change', updateManualValidation);
+      document.getElementById('manual-submit-btn').addEventListener('click', () => {
+        const patient = document.getElementById('man-patient').value.trim() || 'PT-8900';
+        const test = document.getElementById('man-test').value;
+        const tube = document.getElementById('man-tube').value;
+        const priority = document.getElementById('man-priority').value;
+        const expected = TEST_TO_TUBE[test];
+        const id = 'SF-' + (state.nextIdNum++);
+        const mismatch = tube !== expected;
+
+        state.queue.unshift({
+          id, patient, test, tube: expected, priority,
+          tatMin: priority === 'STAT' ? 30 : 120,
+          status: mismatch ? 'rejected' : 'pending',
+          desk: 'Manual Intake', collected: nowTime(),
+          qcNote: mismatch ? `Wrong Tube / Anticoagulant (Scanned ${tube})` : ''
+        });
+        state.audit.unshift(`${nowTime()} · ${id} manual intake (${test}) — ${mismatch ? 'Auto-flagged tube mismatch' : 'Queued for verification'}`);
+        closeManualModal();
+        toast(mismatch ? id + ' flagged as Tube Mismatch' : id + ' added to queue');
+        renderWorkbench();
+      });
+
+      // Detail Modal
+      function openDetailModal(id) {
+        const s = state.queue.find(x => x.id === id);
+        if (!s) return;
+        const spec = TUBE_SPECS[s.tube];
+        document.getElementById('detail-title').textContent = `${s.id} · ${s.test}`;
+        document.getElementById('detail-body').innerHTML = `
+          <div class="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-1.5 text-xs">
+            <p><strong>Patient ID:</strong> ${s.patient}</p>
+            <p><strong>Collection Desk:</strong> ${s.desk} (${s.collected})</p>
+            <p><strong>Required Tube:</strong> ${spec.shape} ${s.tube} (${spec.additive})</p>
+            <p><strong>Inversions:</strong> ${spec.inversions}</p>
+            <p><strong>Priority / TAT:</strong> ${s.priority} (${formatTat(s.tatMin)})</p>
+            <p><strong>Status:</strong> ${s.status.toUpperCase()}${s.qcNote ? ' — ' + s.qcNote : ''}</p>
+          </div>
+        `;
+        const m = document.getElementById('detail-modal');
+        m.classList.remove('hidden'); m.classList.add('flex');
+      }
+      function closeDetailModal() {
+        const m = document.getElementById('detail-modal');
+        m.classList.add('hidden'); m.classList.remove('flex');
+      }
+      document.getElementById('detail-close-x').addEventListener('click', closeDetailModal);
+      document.getElementById('detail-close-btn').addEventListener('click', closeDetailModal);
+
+      // View 2: Tube Reference Guide
+      function renderTubeGuide() {
+        document.getElementById('tube-guide-grid').innerHTML = Object.entries(TUBE_SPECS).map(([name, info]) => `
+          <div class="app-card rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-2.5">
+            <span class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-extrabold ${info.cls}">${info.shape} ${name}</span>
+            <p class="text-xs"><strong>Additive:</strong> ${info.additive}</p>
+            <p class="text-xs"><strong>Mixing:</strong> ${info.inversions}</p>
+            <p class="text-xs"><strong>Common Tests:</strong> ${info.tests}</p>
+            <p class="app-muted text-xs text-slate-600 border-t border-slate-200 pt-2"><strong>Pre-Analytical Risk:</strong> ${info.risk}</p>
+          </div>
+        `).join('');
+      }
+
+      // View 3: Audit & Chart + CSV Export
+      function renderAuditAndChart() {
+        document.getElementById('audit-list').innerHTML = state.audit.map(line => `
+          <li class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 app-surface">${line}</li>
+        `).join('');
+
+        const pending = state.queue.filter(s => s.status === 'pending').length;
+        const verified = state.queue.filter(s => s.status === 'verified').length;
+        const rejected = state.queue.filter(s => s.status === 'rejected').length;
+
+        const ctx = document.getElementById('qcChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        if (qcChartInstance) qcChartInstance.destroy();
+        qcChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Pending', 'Verified', 'QC Flagged'],
+            datasets: [{ data: [pending, verified, rejected], backgroundColor: ['#64748B', '#15803D', '#D97706'], borderWidth: 0 }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 12 } } } }
+          }
+        });
+      }
+
+      document.getElementById('btn-export-csv').addEventListener('click', () => {
+        const rows = [['Sample ID', 'Patient ID', 'Test', 'Required Tube', 'Priority', 'TAT (min)', 'Status', 'QC Note']];
+        state.queue.forEach(s => rows.push([s.id, s.patient, s.test, s.tube, s.priority, s.tatMin, s.status, s.qcNote]));
+        const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sampleflow_shift_qc_report.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast('Exported sampleflow_shift_qc_report.csv');
+      });
+
+      // Init
+      renderWorkbench();
+      renderTubeGuide();
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    })();
+  </script>
+</body>
+</html>
